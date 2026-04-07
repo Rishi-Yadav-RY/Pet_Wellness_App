@@ -13,12 +13,15 @@ CORS(app)
 DEFAULT_AVATAR = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80"
 
 def get_db_url():
-    return (os.environ.get('POSTGRES_URL') or 
+    url = (os.environ.get('POSTGRES_URL') or 
             os.environ.get('DATABASE_URL') or 
             os.environ.get('SUPABASE_DB_URL') or 
             os.environ.get('supabase-cinnabar-horizon') or 
             os.environ.get('SUPABASE_CINNABAR_HORIZON') or 
             os.environ.get('SUPABASE_CINNABAR_HORIZON_URL'))
+    if url and 'pgbouncer=true' in url.lower():
+        url = url.replace('?pgbouncer=true', '').replace('&pgbouncer=true', '').replace('pgbouncer=true', '')
+    return url
 
 def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
     db_url = get_db_url()
@@ -51,57 +54,63 @@ def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
     return result
 
 def init_db():
-    if get_db_url():
-        # Postgres init
-        queries = [
-            "CREATE TABLE IF NOT EXISTS pets (id TEXT PRIMARY KEY, name TEXT, breed TEXT, age INTEGER, avatar_url TEXT, diet_plan TEXT, daily_step_goal INTEGER)",
-            "CREATE TABLE IF NOT EXISTS stats (id SERIAL PRIMARY KEY, pet_id TEXT REFERENCES pets(id), date TEXT, steps INTEGER, sleep REAL, weight REAL, hydration INTEGER)",
-            "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)"
-        ]
-        for q in queries:
-            exec_query(q, commit=True)
+    try:
+        if get_db_url():
+            # Postgres init
+            queries = [
+                "CREATE TABLE IF NOT EXISTS pets (id TEXT PRIMARY KEY, name TEXT, breed TEXT, age INTEGER, avatar_url TEXT, diet_plan TEXT, daily_step_goal INTEGER)",
+                "CREATE TABLE IF NOT EXISTS stats (id SERIAL PRIMARY KEY, pet_id TEXT REFERENCES pets(id), date TEXT, steps INTEGER, sleep REAL, weight REAL, hydration INTEGER)",
+                "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)"
+            ]
+            for q in queries:
+                exec_query(q, commit=True)
+                
+            count = exec_query("SELECT count(*) as cx FROM pets", fetchone=True)['cx']
+        else:
+            # DB setup for SQLite
+            exec_query("CREATE TABLE IF NOT EXISTS pets (id TEXT PRIMARY KEY, name TEXT, breed TEXT, age INTEGER, avatar_url TEXT, diet_plan TEXT, daily_step_goal INTEGER)", commit=True)
+            exec_query("CREATE TABLE IF NOT EXISTS stats (id INTEGER PRIMARY KEY AUTOINCREMENT, pet_id TEXT REFERENCES pets(id), date TEXT, steps INTEGER, sleep REAL, weight REAL, hydration INTEGER)", commit=True)
+            exec_query("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)", commit=True)
+            count = exec_query("SELECT count(*) as cx FROM pets", fetchone=True)['cx']
+    
+        # Seed data if empty
+        if count == 0:
+            pet_id = str(uuid.uuid4())
+            exec_query("INSERT INTO pets (id, name, breed, age, avatar_url, diet_plan, daily_step_goal) VALUES (?,?,?,?,?,?,?)",
+                      (pet_id, "Buddy", "Golden Retriever", 4, DEFAULT_AVATAR, "Maintenance Plan", 10000), commit=True)
             
-        count = exec_query("SELECT count(*) as cx FROM pets", fetchone=True)['cx']
-    else:
-        # DB setup for SQLite
-        exec_query("CREATE TABLE IF NOT EXISTS pets (id TEXT PRIMARY KEY, name TEXT, breed TEXT, age INTEGER, avatar_url TEXT, diet_plan TEXT, daily_step_goal INTEGER)", commit=True)
-        exec_query("CREATE TABLE IF NOT EXISTS stats (id INTEGER PRIMARY KEY AUTOINCREMENT, pet_id TEXT REFERENCES pets(id), date TEXT, steps INTEGER, sleep REAL, weight REAL, hydration INTEGER)", commit=True)
-        exec_query("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)", commit=True)
-        count = exec_query("SELECT count(*) as cx FROM pets", fetchone=True)['cx']
-
-    # Seed data if empty
-    if count == 0:
-        pet_id = str(uuid.uuid4())
-        exec_query("INSERT INTO pets (id, name, breed, age, avatar_url, diet_plan, daily_step_goal) VALUES (?,?,?,?,?,?,?)",
-                  (pet_id, "Buddy", "Golden Retriever", 4, DEFAULT_AVATAR, "Maintenance Plan", 10000), commit=True)
-        
-        today = datetime.now()
-        for i in range(7):
-            day = (today - timedelta(days=6-i)).strftime('%Y-%m-%d')
-            exec_query("INSERT INTO stats (pet_id, date, steps, sleep, weight, hydration) VALUES (?,?,?,?,?,?)",
-                      (pet_id, day, random.randint(5000, 11000), random.uniform(10.5, 14.0), 32.5, random.randint(400, 800)), commit=True)
+            today = datetime.now()
+            for i in range(7):
+                day = (today - timedelta(days=6-i)).strftime('%Y-%m-%d')
+                exec_query("INSERT INTO stats (pet_id, date, steps, sleep, weight, hydration) VALUES (?,?,?,?,?,?)",
+                          (pet_id, day, random.randint(5000, 11000), random.uniform(10.5, 14.0), 32.5, random.randint(400, 800)), commit=True)
+    except Exception as e:
+        print("DB INIT ERROR:", e)
 
 init_db()
 
 @app.route('/api/pets', methods=['GET'])
 def get_pets():
-    pets = exec_query("SELECT * FROM pets", fetchall=True)
-    for pet in pets:
-        stats = exec_query("SELECT * FROM stats WHERE pet_id = ? ORDER BY date ASC LIMIT 7", (pet['id'],), fetchall=True)
-        labels, steps, sleep, weight = [], [], [], []
-        latest_hydration = 0
-        for s in stats:
-            date_obj = datetime.strptime(s['date'], '%Y-%m-%d')
-            labels.append(date_obj.strftime('%a'))
-            steps.append(s['steps'])
-            sleep.append(round(s['sleep'], 1))
-            weight.append(round(s['weight'], 1))
-            latest_hydration = s['hydration']
-            
-        pet['historicalData'] = {
-            'labels': labels, 'steps': steps, 'sleep': sleep, 'weight': weight, 'latest_hydration': latest_hydration
-        }
-    return jsonify(pets)
+    try:
+        pets = exec_query("SELECT * FROM pets", fetchall=True)
+        for pet in pets:
+            stats = exec_query("SELECT * FROM stats WHERE pet_id = ? ORDER BY date ASC LIMIT 7", (pet['id'],), fetchall=True)
+            labels, steps, sleep, weight = [], [], [], []
+            latest_hydration = 0
+            for s in stats:
+                date_obj = datetime.strptime(s['date'], '%Y-%m-%d')
+                labels.append(date_obj.strftime('%a'))
+                steps.append(s['steps'])
+                sleep.append(round(s['sleep'], 1))
+                weight.append(round(s['weight'], 1))
+                latest_hydration = s['hydration']
+                
+            pet['historicalData'] = {
+                'labels': labels, 'steps': steps, 'sleep': sleep, 'weight': weight, 'latest_hydration': latest_hydration
+            }
+        return jsonify(pets)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/pets', methods=['POST'])
 def add_pet():
