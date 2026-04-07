@@ -86,7 +86,12 @@ function loadProfile() {
     const pet = getCurrentPet();
     if (!pet) return;
 
-    document.getElementById('pet-avatar-img').src = `http://127.0.0.1:5000${pet.avatar_url}`;
+    if (pet.avatar_url && (pet.avatar_url.startsWith('data:') || pet.avatar_url.startsWith('http'))) {
+        document.getElementById('pet-avatar-img').src = pet.avatar_url;
+    } else {
+        const baseUrl = API_BASE.replace('/api', '');
+        document.getElementById('pet-avatar-img').src = `${baseUrl}${pet.avatar_url && pet.avatar_url.startsWith('/') ? '' : '/'}${pet.avatar_url || ''}`;
+    }
     document.getElementById('pet-name').textContent = pet.name;
     document.getElementById('pet-breed').textContent = pet.breed;
     document.getElementById('pet-age').textContent = pet.age;
@@ -149,12 +154,22 @@ function setupModals() {
         if (name && breed && age) {
             let avatarBase64 = null;
             if(fileInput.files.length > 0) {
-                // Convert file to Base64 String for Serverless Database ingestion
-                const reader = new FileReader();
-                reader.readAsDataURL(fileInput.files[0]);
-                await new Promise(resolve => reader.onload = () => {
-                    avatarBase64 = reader.result;
-                    resolve();
+                const file = fileInput.files[0];
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
+                avatarBase64 = await new Promise(resolve => {
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const maxDim = 300;
+                        let w = img.width, h = img.height;
+                        if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+                        else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.onerror = () => resolve(null);
                 });
             }
 
@@ -283,13 +298,24 @@ function setupModals() {
         if(e.target.files.length > 0) {
             showToast("Uploading photo securely...", "fa-spinner");
             
-            const reader = new FileReader();
-            reader.readAsDataURL(e.target.files[0]);
-            reader.onload = async () => {
+            const file = e.target.files[0];
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const maxDim = 300;
+                let w = img.width, h = img.height;
+                if (w > h) { if (w > maxDim) { h *= maxDim / w; w = maxDim; } }
+                else { if (h > maxDim) { w *= maxDim / h; h = maxDim; } }
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                
                 const res = await fetch(`${API_BASE}/pets/${currentPetId}/avatar`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ avatarBase64: reader.result })
+                    body: JSON.stringify({ avatarBase64: compressedBase64 })
                 });
                 const data = await res.json();
 
@@ -396,9 +422,10 @@ function updateChartsData() {
 
 // 4. Sync Database Data
 async function syncDeviceData() {
-    const syncBtn = document.getElementById('sync-btn');
     const pet = getCurrentPet();
+    if (!pet) { showToast("No pet found.", "fa-triangle-exclamation"); return; }
     
+    const syncBtn = document.getElementById('sync-btn');
     syncBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Syncing...`;
     syncBtn.disabled = true;
 
