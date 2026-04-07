@@ -61,8 +61,15 @@ async function loadWeather() {
 async function fetchPets() {
     try {
         const response = await fetch(`${API_BASE}/pets`);
-        pets = await response.json();
+        const data = await response.json();
         
+        if (data.error) {
+            showToast(`DB Error: ${data.error}`, "fa-triangle-exclamation");
+            pets = [];
+            return;
+        }
+        
+        pets = data;
         if (pets.length > 0) {
             // retain selection if possible
             if (!currentPetId || !pets.find(p => p.id === currentPetId)) {
@@ -446,9 +453,14 @@ async function syncDeviceData() {
             } else {
                 showToast("Vitals synced with Database.", "fa-check-circle");
             }
+        } else {
+            showToast(`Sync failed: ${data.error || "Unknown error"}`, "fa-times");
+            syncBtn.innerHTML = `<i class="fa-solid fa-rotate"></i> Sync Vitals`;
+            syncBtn.disabled = false;
+            return;
         }
     } catch (e) {
-        showToast("Sync failed.", "fa-times");
+        showToast("Sync crashed (Network Error).", "fa-times");
     }
 
     syncBtn.innerHTML = `<i class="fa-solid fa-check"></i> Synced!`;
