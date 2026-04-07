@@ -19,8 +19,12 @@ def get_db_url():
             os.environ.get('supabase-cinnabar-horizon') or 
             os.environ.get('SUPABASE_CINNABAR_HORIZON') or 
             os.environ.get('SUPABASE_CINNABAR_HORIZON_URL'))
-    if url and 'pgbouncer=true' in url.lower():
-        url = url.replace('?pgbouncer=true', '').replace('&pgbouncer=true', '').replace('pgbouncer=true', '')
+            
+    if url and '?' in url:
+        base, query_str = url.split('?', 1)
+        valid = [p for p in query_str.split('&') if p.startswith('sslmode=')]
+        url = base + ('?' + '&'.join(valid) if valid else '')
+        
     return url
 
 def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
