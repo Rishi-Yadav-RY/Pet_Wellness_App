@@ -13,7 +13,12 @@ CORS(app)
 DEFAULT_AVATAR = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80"
 
 def get_db_url():
-    return os.environ.get('POSTGRES_URL') or os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
+    return (os.environ.get('POSTGRES_URL') or 
+            os.environ.get('DATABASE_URL') or 
+            os.environ.get('SUPABASE_DB_URL') or 
+            os.environ.get('supabase-cinnabar-horizon') or 
+            os.environ.get('SUPABASE_CINNABAR_HORIZON') or 
+            os.environ.get('SUPABASE_CINNABAR_HORIZON_URL'))
 
 def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
     db_url = get_db_url()
