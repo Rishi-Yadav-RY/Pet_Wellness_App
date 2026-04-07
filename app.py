@@ -12,8 +12,11 @@ CORS(app)
 
 DEFAULT_AVATAR = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80"
 
+def get_db_url():
+    return os.environ.get('POSTGRES_URL') or os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
+
 def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
-    db_url = os.environ.get('POSTGRES_URL')
+    db_url = get_db_url()
     
     if db_url:
         import psycopg2
@@ -43,7 +46,7 @@ def exec_query(query, params=(), commit=False, fetchone=False, fetchall=False):
     return result
 
 def init_db():
-    if os.environ.get('POSTGRES_URL'):
+    if get_db_url():
         # Postgres init
         queries = [
             "CREATE TABLE IF NOT EXISTS pets (id TEXT PRIMARY KEY, name TEXT, breed TEXT, age INTEGER, avatar_url TEXT, diet_plan TEXT, daily_step_goal INTEGER)",
@@ -139,23 +142,26 @@ def update_diet(pet_id):
 
 @app.route('/api/pets/<pet_id>/sync', methods=['POST'])
 def sync_stats(pet_id):
-    row = exec_query("SELECT weight FROM stats WHERE pet_id = ? ORDER BY date DESC LIMIT 1", (pet_id,), fetchone=True)
-    current_weight = float(row['weight']) if row else 15.0
-    
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    new_steps = random.randint(4000, 12000)
-    new_sleep = round(random.uniform(10.0, 14.5), 1)
-    new_hydration = random.randint(300, 800)
-    new_weight = round(current_weight + random.uniform(-0.2, 0.2), 1)
-    
-    exists = exec_query("SELECT id FROM stats WHERE pet_id = ? AND date = ?", (pet_id, today_str), fetchone=True)
-    if exists:
-        exec_query("UPDATE stats SET steps=?, sleep=?, weight=?, hydration=? WHERE id=?", 
-                     (new_steps, new_sleep, new_weight, new_hydration, exists['id']), commit=True)
-    else:
-        exec_query("INSERT INTO stats (pet_id, date, steps, sleep, weight, hydration) VALUES (?,?,?,?,?,?)",
-                     (pet_id, today_str, new_steps, new_sleep, new_weight, new_hydration), commit=True)
-    return jsonify({"success": True, "steps": new_steps, "sleep": new_sleep, "weight": new_weight, "hydration": new_hydration})
+    try:
+        row = exec_query("SELECT weight FROM stats WHERE pet_id = ? ORDER BY date DESC LIMIT 1", (pet_id,), fetchone=True)
+        current_weight = float(row['weight']) if row and row.get('weight') is not None else 15.0
+        
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        new_steps = random.randint(4000, 12000)
+        new_sleep = round(random.uniform(10.0, 14.5), 1)
+        new_hydration = random.randint(300, 800)
+        new_weight = round(current_weight + random.uniform(-0.2, 0.2), 1)
+        
+        exists = exec_query("SELECT id FROM stats WHERE pet_id = ? AND date = ?", (pet_id, today_str), fetchone=True)
+        if exists:
+            exec_query("UPDATE stats SET steps=?, sleep=?, weight=?, hydration=? WHERE id=?", 
+                         (new_steps, new_sleep, new_weight, new_hydration, exists['id']), commit=True)
+        else:
+            exec_query("INSERT INTO stats (pet_id, date, steps, sleep, weight, hydration) VALUES (?,?,?,?,?,?)",
+                         (pet_id, today_str, new_steps, new_sleep, new_weight, new_hydration), commit=True)
+        return jsonify({"success": True, "steps": new_steps, "sleep": new_sleep, "weight": new_weight, "hydration": new_hydration})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/pets/<pet_id>', methods=['DELETE'])
 def delete_pet(pet_id):
@@ -174,7 +180,7 @@ def save_setting():
     key = data.get('key')
     value = data.get('value')
     # Postgres uses ON CONFLICT (key) DO UPDATE. SQLite handles it natively via INSERT OR REPLACE
-    if os.environ.get('POSTGRES_URL'):
+    if get_db_url():
         exec_query("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (key, value, value), commit=True)
     else:
         exec_query("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=?", (key, value, value), commit=True)
