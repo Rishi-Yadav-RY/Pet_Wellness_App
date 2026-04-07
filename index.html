@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetWell - Smart Pet Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+    <!-- Navigation Bar -->
+    <header class="navbar">
+        <div class="logo">
+            <i class="fa-solid fa-paw"></i> PetWell
+        </div>
+
+        <div class="nav-center">
+            <nav>
+                <ul>
+                    <li><a href="#" class="active">Dashboard</a></li>
+                    <li><a href="#" id="nav-diet-btn">Diet Plan</a></li>
+                    <li><a href="#">Vet Records</a></li>
+                    <li><a href="#" id="nav-settings-btn">Settings</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <div class="nav-right">
+            <div class="pet-switcher">
+                <i class="fa-solid fa-dog"></i>
+                <select id="pet-selector" class="pet-select"></select>
+                <button id="add-pet-btn" class="icon-btn" title="Add New Pet"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <button id="theme-toggle" class="theme-toggle-btn" title="Toggle Dark Mode">
+                <i class="fa-solid fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Live Weather Widget -->
+        <div class="weather-widget" id="weather-widget" style="display: none;">
+            <div class="weather-info">
+                <img id="weather-icon" src="" alt="Weather" width="50">
+                <div>
+                    <h3 id="weather-temp">--°C</h3>
+                    <p id="weather-desc">Loading Weather...</p>
+                </div>
+            </div>
+            <p class="weather-msg">Need OpenWeather API Key & City in Settings.</p>
+        </div>
+
+        <!-- Pet Profile Section -->
+        <section class="pet-profile glass-card">
+            <div class="avatar-container" title="Click to change photo">
+                <img id="pet-avatar-img" src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Pet Profile" class="pet-avatar">
+                <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+                <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
+            </div>
+            <div class="pet-info">
+                <!-- Data attributes used for event delegation editable targeting -->
+                <h1 title="Click to edit name"><span id="pet-name" class="editable" data-field="name">Loading...</span> <i class="fa-solid fa-pen edit-icon"></i></h1>
+                <p>
+                    <span id="pet-breed" class="editable" data-field="breed" title="Click to edit breed">...</span> | 
+                    <span id="pet-age" class="editable" data-field="age" title="Click to edit age">...</span> Years Old
+                </p>
+                <div class="status-badge">
+                    <span class="dot"></span> Collar Connected
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button id="sync-btn" class="action-btn sync-btn">
+                    <i class="fa-solid fa-rotate"></i> Sync Vitals
+                </button>
+                <button id="feed-btn" class="action-btn secondary-btn">
+                    <i class="fa-solid fa-bowl-food"></i> <span id="feed-btn-text">Feed Now</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Wellness Dashboard Grid -->
+        <section class="dashboard-grid">
+
+            <!-- Heart Rate Card -->
+            <div class="card glass-card">
+                <div class="card-header">
+                    <div class="icon-box icon-red"><i class="fa-solid fa-heart-pulse"></i></div>
+                    <h3>Heart Rate</h3>
+                </div>
+                <div class="card-body">
+                    <h2 id="heart-rate">-- bpm</h2>
+                    <p class="status-text pulse-text">Normal</p>
+                </div>
+            </div>
+
+            <!-- Hydration Card -->
+            <div class="card glass-card">
+                <div class="card-header">
+                    <div class="icon-box icon-cyan"><i class="fa-solid fa-droplet"></i></div>
+                    <h3>Hydration</h3>
+                </div>
+                <div class="card-body hydration-body">
+                    <h2 id="hydration-lvl">-- ml</h2>
+                    <p class="status-text">Daily Intake</p>
+                </div>
+            </div>
+
+            <!-- Activity Level Card with Chart -->
+            <div class="card glass-card span-2">
+                <div class="card-header">
+                    <div class="icon-box icon-orange"><i class="fa-solid fa-person-running"></i></div>
+                    <h3>Activity Trends</h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                    <div class="activity-summary">
+                        <h2 id="steps">-- steps today</h2>
+                        <p class="status-text target-text">Goal: 10,000 steps</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weight Tracker with Chart -->
+            <div class="card glass-card span-2">
+                <div class="card-header">
+                    <div class="icon-box icon-purple"><i class="fa-solid fa-weight-scale"></i></div>
+                    <h3>Weight Tracker</h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="weightChart"></canvas>
+                    </div>
+                    <div class="sleep-summary">
+                        <h2 id="weight-kg">-- kg</h2>
+                        <p class="status-text">Target: 30 kg</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sleep Card with Chart -->
+            <div class="card glass-card span-2">
+                <div class="card-header">
+                    <div class="icon-box icon-blue"><i class="fa-solid fa-moon"></i></div>
+                    <h3>Sleep Analysis</h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="sleepChart"></canvas>
+                    </div>
+                    <div class="sleep-summary">
+                        <h2 id="sleep-hours">-- hrs today</h2>
+                        <p class="status-text">Well rested</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weight/Diet Card -->
+            <div class="card glass-card span-2 diet-detail-card">
+                <div class="card-header">
+                    <div class="icon-box icon-green"><i class="fa-solid fa-utensils"></i></div>
+                    <h3>Current Diet Plan</h3>
+                    <button id="card-diet-btn" class="small-outline-btn" style="margin-left: auto;">Change Plan</button>
+                </div>
+                <div class="card-body">
+                    <h2 id="active-diet-name">Maintenance Plan</h2>
+                    <p class="status-text" id="active-diet-desc">Standard balanced diet.</p>
+                    
+                    <!-- New Detailed Breakdown -->
+                    <div class="diet-breakdown" id="diet-breakdown-list">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Health Advisor Card -->
+            <div class="card glass-card span-2 ai-advisor-card">
+                <div class="card-header">
+                    <div class="icon-box icon-purple"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3>AI Health Advisor</h3>
+                    <button id="card-ai-btn" class="small-outline-btn" style="margin-left: auto;">Generate Report</button>
+                </div>
+                <div class="card-body">
+                    <p id="ai-insight-text" style="color: var(--text-color); font-size: 1.1rem; line-height: 1.6;">
+                        Click Generate to analyze your pet's 7-day vitals via Google Gemini AI!
+                    </p>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- 1. Add Pet Modal -->
+    <div id="add-pet-modal" class="modal-overlay">
+        <div class="modal-content glass-card">
+            <h2>Add New Pet</h2>
+            <div class="form-group">
+                <label>Pet Name</label>
+                <input type="text" id="new-pet-name" placeholder="E.g., Max">
+            </div>
+            <div class="form-group">
+                <label>Breed</label>
+                <input type="text" id="new-pet-breed" placeholder="E.g., Husky">
+            </div>
+            <div class="form-group">
+                <label>Age (Years)</label>
+                <input type="number" id="new-pet-age" placeholder="E.g., 3">
+            </div>
+            <div class="form-group">
+                <label>Upload Photo (Optional)</label>
+                <input type="file" id="new-pet-avatar" accept="image/*">
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-add-pet" class="action-btn secondary-btn">Cancel</button>
+                <button id="confirm-add-pet" class="action-btn sync-btn">Save Pet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Diet Plan Modal -->
+    <div id="diet-modal" class="modal-overlay">
+        <div class="modal-content glass-card diet-modal-content">
+            <h2>Select Diet Plan</h2>
+            <p class="modal-subtitle">Choose the best nutrition profile for <span id="diet-pet-name-label">your pet</span>.</p>
+            
+            <div class="diet-options">
+                <div class="diet-card" data-plan="Maintenance Plan">
+                    <i class="fa-solid fa-bowl-rice icon-green"></i>
+                    <h4>Maintenance Plan</h4>
+                    <p>Standard balanced diet for healthy adult pets. Optimal macro ratio.</p>
+                </div>
+                <div class="diet-card" data-plan="Weight Loss Plan">
+                    <i class="fa-solid fa-carrot icon-orange"></i>
+                    <h4>Weight Loss Plan</h4>
+                    <p>High fiber, low calorie formulation to safely shed excess pounds.</p>
+                </div>
+                <div class="diet-card" data-plan="High Energy Plan">
+                    <i class="fa-solid fa-bone icon-red"></i>
+                    <h4>High Energy Plan</h4>
+                    <p>Protein-packed diet built for working dogs or highly active pets.</p>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 2rem;">
+                <button id="close-diet-modal" class="action-btn secondary-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Settings Modal -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content glass-card" style="max-width: 500px;">
+            <h2>App Settings</h2>
+            
+            <div class="form-group">
+                <label>Daily Step Goal (<span id="settings-pet-name"></span>)</label>
+                <input type="number" id="settings-step-goal" placeholder="E.g., 10000">
+            </div>
+
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(128,128,128,0.2);">
+                <h3 style="margin-bottom: 15px;">API Integrations</h3>
+                
+                <div class="form-group">
+                    <label>Weather City</label>
+                    <input type="text" id="settings-city" placeholder="E.g., London, UK">
+                </div>
+                
+                <div class="form-group">
+                    <label>OpenWeather API Key</label>
+                    <input type="password" id="settings-weather-key" placeholder="Paste OpenWeather key...">
+                </div>
+
+                <div class="form-group">
+                    <label>Google Gemini API Key</label>
+                    <input type="password" id="settings-gemini-key" placeholder="AIzaSy...">
+                </div>
+            </div>
+            
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(128,128,128,0.2);">
+                <label style="display:block; margin-bottom:10px; color:#ff4b4b; font-weight:600;">Danger Zone</label>
+                <button id="delete-pet-btn" class="action-btn" style="background:#ff4b4b; color:white; width:100%;">Delete This Pet</button>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 2rem;">
+                <button id="close-settings-modal" class="action-btn secondary-btn">Cancel</button>
+                <button id="save-settings-modal" class="action-btn sync-btn">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
