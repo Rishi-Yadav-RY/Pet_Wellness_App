@@ -119,6 +119,8 @@ h1:hover .edit-icon, p:hover .edit-icon { opacity: 1; }
 .status-text { color: var(--text-muted); font-size: 1rem; font-weight: 500; }
 .chart-container { position: relative; height: 250px; width: 100%; margin-bottom: 1rem; }
 .activity-summary, .sleep-summary { display: flex; justify-content: space-between; align-items: flex-end; }
+.source-text { color: var(--text-muted); font-size: 0.85rem; margin-top: 6px; display: flex; align-items: center; gap: 6px; opacity: 0.8; font-weight: 500; }
+.source-text i { font-size: 0.95rem; color: var(--primary-color); opacity: 0.9; }
 
 /* Icons */
 .icon-red { color: var(--icon-red); background-color: var(--icon-red-bg); }
